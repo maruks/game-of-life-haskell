@@ -1,0 +1,64 @@
+name:                game-of-life
+version:             0.1.0.0
+github:              "maruks/game-of-life"
+license:             BSD3
+author:              "Maris Orbidans"
+maintainer:          "maris.orbidans@gmail.com"
+copyright:           "2018 Maris Orbidans"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/maruks/game-of-life#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+
+library:
+  source-dirs: src
+  dependencies:
+    - containers
+
+executables:
+  game-of-life-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - game-of-life
+    - text
+    - wai
+    - wai-websockets
+    - wai-app-static
+    - warp
+    - websockets
+    - http-types
+    - aeson
+    - containers
+    - uuid
+    - random
+    - bytestring
+
+tests:
+  game-of-life-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - game-of-life
+    - hspec
+    - QuickCheck

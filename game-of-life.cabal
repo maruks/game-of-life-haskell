@@ -1,0 +1,76 @@
+-- This file has been generated from package.yaml by hpack version 0.28.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: ff596ca145b5745e1c11706478d2d5bab82b66af3fb05fbe79112543bfcbd69c
+
+name:           game-of-life
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/maruks/game-of-life#readme>
+homepage:       https://github.com/maruks/game-of-life#readme
+bug-reports:    https://github.com/maruks/game-of-life/issues
+author:         Maris Orbidans
+maintainer:     maris.orbidans@gmail.com
+copyright:      2018 Maris Orbidans
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+extra-source-files:
+    ChangeLog.md
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/maruks/game-of-life
+
+library
+  exposed-modules:
+      Lib
+  other-modules:
+      Paths_game_of_life
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , containers
+  default-language: Haskell2010
+
+executable game-of-life-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_game_of_life
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , bytestring
+    , containers
+    , game-of-life
+    , http-types
+    , random
+    , text
+    , uuid
+    , wai
+    , wai-app-static
+    , wai-websockets
+    , warp
+    , websockets
+  default-language: Haskell2010
+
+test-suite game-of-life-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_game_of_life
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , base >=4.7 && <5
+    , game-of-life
+    , hspec
+  default-language: Haskell2010
