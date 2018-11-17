@@ -60,5 +60,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - game-of-life
+    - containers
     - hspec
     - QuickCheck
