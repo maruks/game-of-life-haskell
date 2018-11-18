@@ -1,7 +1,7 @@
 FROM ubuntu:14.10
 
 # docker build -t lambda .
-# docker run --name lambda --tty -d -p 9393:8080 lambda 
+# docker run --name lambda --tty --network net -d lambda 
 # docker stop lambda
 # docker start lambda
 
