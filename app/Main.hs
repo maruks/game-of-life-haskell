@@ -66,7 +66,7 @@ instance ToJSON Cells
 gridToJson :: Grid -> BS.ByteString
 gridToJson (Grid _ _ cells) = encode $ Cells "cells" points
   where
-    points = List.map (Point 1) $ Map.keys cells
+    points = List.map (\(point, color) -> Point color point) $ Map.assocs cells
 
 connectClient :: ClientId -> Concurrent.MVar State -> IO ()
 connectClient clientId stateRef =
@@ -94,7 +94,7 @@ randGrid w h =
   in do g <- Rand.getStdGen
         let numbers :: [Int] = take (2 * alive) $ Rand.randoms g
         let pairs = zip numbers $ drop alive numbers
-        let list = map (\(a, b) -> ((mod a w, mod b h), True)) pairs
+        let list = map (\(a, b) -> ((mod a w, mod b h), 1)) pairs
         return $ Grid w h $ Map.fromList list
 
 handleMsg :: WS.Connection
