@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2901dff5edbd75ec15d95bdbf8a6d7d1a51fd3ddde8786644d2eaa2b2ba6f102
+-- hash: 4edc0bdffe76d244bd1965896404e5d9006cdb2b2039d596131b830cc3aae622
 
 name:           game-of-life
 version:        0.1.0.0
@@ -34,6 +34,7 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , unique
   default-language: Haskell2010
 
 executable game-of-life-exe
@@ -51,6 +52,7 @@ executable game-of-life-exe
     , game-of-life
     , http-types
     , random
+    , random-shuffle
     , text
     , uuid
     , wai

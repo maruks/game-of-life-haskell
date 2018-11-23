@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -22,32 +23,39 @@ import qualified WaiAppStatic.Types as Static
 import qualified Data.UUID.V4 as UUID
 import qualified Data.UUID as UUID
 import qualified System.Random as Rand
+import qualified System.Random.Shuffle as Rand
+import GHC.Base ((<|>))
 import Data.Aeson
 import GHC.Generics
 import Lib
 
+import Debug.Trace
+
 type ClientId = Text.Text
 
-type State = Map.Map ClientId Grid
+data ClientState = ClientState
+  { generation :: Int
+  , grid :: Grid
+  } deriving (Show, Eq)
 
-data GridSize = GridSize
-  { width :: Int
-  , height :: Int
-  } deriving (Show, Generic)
+type State = Map.Map ClientId ClientState
 
-instance FromJSON GridSize
+data Message
+  = Next
+  | Start { width :: Int
+          , height :: Int}
+  deriving (Show, Eq)
 
-data Start = Start
-  { start :: GridSize
-  } deriving (Show, Generic)
-
-instance FromJSON Start
-
-data Next = Next
-  { next :: Int
-  } deriving (Show, Generic)
-
-instance FromJSON Next
+instance FromJSON Message where
+  parseJSON =
+    withObject "next or start" $
+    \o ->
+       (do startO <- o .: "start"
+           width <- startO .: "width"
+           height <- startO .: "height"
+           return $ Start width height) <|>
+       (do next :: Int <- o .: "next"
+           return Next)
 
 data Point = Point
   { color :: Int
@@ -71,7 +79,9 @@ gridToJson (Grid _ _ cells) = encode $ Cells "cells" points
 connectClient :: ClientId -> Concurrent.MVar State -> IO ()
 connectClient clientId stateRef =
   Concurrent.modifyMVar_ stateRef $
-  \state -> return $ Map.insert clientId (Grid 0 0 Map.empty) state
+  \state -> return $ Map.insert clientId clientState state
+  where
+    clientState = ClientState 0 (Grid 0 0 Map.empty)
 
 disconnectClient :: ClientId -> Concurrent.MVar State -> IO ()
 disconnectClient clientId stateRef =
@@ -81,21 +91,25 @@ listen :: WS.Connection -> ClientId -> Concurrent.MVar State -> IO ()
 listen conn clientId stateRef =
   Monad.forever $ WS.receiveData conn >>= handleMsg conn clientId stateRef
 
-sendGrid :: WS.Connection -> ClientId -> State -> IO ()
-sendGrid conn clientId state =
-  case Map.lookup clientId state of
-    Just g -> WS.sendTextData conn $ gridToJson g
-    Nothing ->
-      WS.sendTextData conn ("{\"tag\":\"error\", \"code\":1}" :: Text.Text)
+sendGrid :: WS.Connection -> ClientId -> Grid -> IO ()
+sendGrid conn clientId grid = WS.sendTextData conn $ gridToJson grid
 
 randGrid :: Int -> Int -> IO Grid
 randGrid w h =
-  let alive = w * h `div` 2
-  in do g <- Rand.getStdGen
-        let numbers :: [Int] = take (2 * alive) $ Rand.randoms g
-        let pairs = zip numbers $ drop alive numbers
-        let list = map (\(a, b) -> ((mod a w, mod b h), 1)) pairs
+  let numberOfRandomCells = round 0.8 * fromIntegral w * h
+  in do g <- Rand.newStdGen
+        let numbers :: [Int] = take (2 * numberOfRandomCells) $ Rand.randoms g
+        let pairs = zip numbers $ drop numberOfRandomCells numbers
+        let list = map (\(a, b) -> ((a `rem` w, b `rem` h), 1)) pairs
         return $ Grid w h $ Map.fromList list
+
+tricksterCells :: Grid -> IO (Map.Map (Int,Int) Int)
+tricksterCells grid = do
+  g <- Rand.newStdGen
+  let ns = allEmptyNeighbours grid
+      ln = length ns
+      sh = Rand.shuffle' ns ln g
+  return $ Map.fromList $ zip (take (ln `div` 2) sh) (repeat 2)
 
 handleMsg :: WS.Connection
           -> ClientId
@@ -103,26 +117,47 @@ handleMsg :: WS.Connection
           -> BS.ByteString
           -> IO ()
 handleMsg conn clientId stateRef msg =
-  case decode msg :: Maybe Next of
-    Just (Next x) -> do
+  case decode msg :: Maybe Message of
+    Just Next -> do
       state <-
         Concurrent.modifyMVar stateRef $
         \s ->
-           let m = Map.adjust nextGrid clientId s
+           case Map.lookup clientId s of
+             Just ClientState {generation
+                              ,grid}
+               | 0 == generation `rem` 10 &&
+                   Map.size (Lib.cells grid) <
+                   (Lib.width grid * Lib.height grid `div` 10) -> do
+                 newCells <- tricksterCells grid
+                 let newGrid = grid {Lib.cells = Map.union newCells (Lib.cells grid)}
+                     newState = Map.insert clientId (ClientState (generation + 1) newGrid) s
+                 sendGrid conn clientId newGrid
+                 return (newState, newState)
+             Just ClientState {generation
+                              ,grid} -> do
+               let newState =
+                     Map.insert
+                       clientId
+                       (ClientState (generation + 1) (nextGrid grid))
+                       s
+               sendGrid conn clientId grid
+               return (newState, newState)
+             Nothing -> do
+               WS.sendTextData
+                 conn
+                 ("{\"tag\":\"error\", \"code\":1}" :: Text.Text)
+               return (s, s)
+      return ()
+    Just (Start w h) -> do
+      grid <- randGrid w h
+      state <-
+        Concurrent.modifyMVar stateRef $
+        \s ->
+           let m = Map.insert clientId (ClientState 0 grid) s
            in return (m, m)
-      sendGrid conn clientId state
+      return ()
     Nothing ->
-      case decode msg :: Maybe Start of
-        Just (Start (GridSize w h)) -> do
-          grid <- randGrid w h
-          state <-
-            Concurrent.modifyMVar stateRef $
-            \s ->
-               let m = Map.insert clientId grid s
-               in return (m, m)
-          sendGrid conn clientId state
-        Nothing ->
-          WS.sendTextData conn ("{\"tag\":\"error\", \"code\":2}" :: Text.Text)
+      WS.sendTextData conn ("{\"tag\":\"error\", \"code\":2}" :: Text.Text)
 
 wsApp :: Concurrent.MVar State -> WS.ServerApp
 wsApp stateRef pendingConn = do
@@ -131,7 +166,7 @@ wsApp stateRef pendingConn = do
   connectClient clientId stateRef
   WS.sendTextData
     conn
-    ("{\"tag\":\"colors\", \"colors\":[ {\"color\":\"#5F9EA0\", \"code\":1} ]}" :: Text.Text)
+    ("{\"tag\":\"colors\", \"colors\":[ {\"color\":\"#4682B4\", \"code\":1} , {\"color\":\"#66a2d4\", \"code\":2} ]}" :: Text.Text)
   WS.forkPingThread conn 30
   Exception.finally
     (listen conn clientId stateRef)
@@ -139,7 +174,10 @@ wsApp stateRef pendingConn = do
 
 httpApp :: Wai.Application
 httpApp =
-  Static.staticApp $ s { Static.ssIndices = [Static.unsafeToPiece "index.html"]}
+  Static.staticApp $
+  s
+  { Static.ssIndices = [Static.unsafeToPiece "index.html"]
+  }
   where
     s = Static.defaultWebAppSettings "./static"
 

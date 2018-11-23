@@ -26,6 +26,7 @@ library:
   source-dirs: src
   dependencies:
     - containers
+    - unique
 
 executables:
   game-of-life-exe:
@@ -48,6 +49,7 @@ executables:
     - containers
     - uuid
     - random
+    - random-shuffle
     - bytestring
 
 tests:
