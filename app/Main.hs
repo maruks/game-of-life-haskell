@@ -29,7 +29,7 @@ import Data.Aeson
 import GHC.Generics
 import Lib
 
-import Debug.Trace
+-- import Debug.Trace
 
 type ClientId = Text.Text
 
@@ -125,13 +125,13 @@ handleMsg conn clientId stateRef msg =
            case Map.lookup clientId s of
              Just ClientState {generation
                               ,grid}
-               | 0 == generation `rem` 10 &&
+               | generation > 0 && 0 == generation `rem` 10 &&
                    Map.size (Lib.cells grid) <
                    (Lib.width grid * Lib.height grid `div` 10) -> do
                  newCells <- tricksterCells grid
                  let newGrid = grid {Lib.cells = Map.union newCells (Lib.cells grid)}
                      newState = Map.insert clientId (ClientState (generation + 1) newGrid) s
-                 sendGrid conn clientId newGrid
+                 sendGrid conn clientId grid
                  return (newState, newState)
              Just ClientState {generation
                               ,grid} -> do
@@ -166,7 +166,7 @@ wsApp stateRef pendingConn = do
   connectClient clientId stateRef
   WS.sendTextData
     conn
-    ("{\"tag\":\"colors\", \"colors\":[ {\"color\":\"#4682B4\", \"code\":1} , {\"color\":\"#66a2d4\", \"code\":2} ]}" :: Text.Text)
+    ("{\"tag\":\"colors\", \"colors\":[ {\"color\":\"#4682B4\", \"code\":1} , {\"color\":\"#76b2e4\", \"code\":2} ]}" :: Text.Text)
   WS.forkPingThread conn 30
   Exception.finally
     (listen conn clientId stateRef)
